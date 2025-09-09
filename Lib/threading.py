@@ -996,6 +996,8 @@ class Thread:
             with _active_limbo_lock:
                 del _limbo[self]
             raise
+
+        # TODO: what happen if the new Thread die before calling _bootstrap_inner
         self._started.wait()
 
     def run(self):
@@ -1108,7 +1110,8 @@ class Thread:
     def _delete(self):
         "Remove current thread from the dict of currently running threads."
         with _active_limbo_lock:
-            del _active[get_ident()]
+            # If _delete is call to be able to put the thread into the _active pool
+            _active.pop(get_ident(), None)
             # There must not be any python code between the previous line
             # and after the lock is released.  Otherwise a tracing function
             # could try to acquire the lock again in the same thread, (in

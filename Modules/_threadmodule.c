@@ -1119,6 +1119,7 @@ thread_run(void *boot_raw)
             /* SystemExit is ignored silently */
             PyErr_Clear();
         else {
+            // TODO
             _PyErr_WriteUnraisableMsg("in thread started by", boot->func);
         }
     }
