@@ -337,6 +337,7 @@ struct bootstate {
     PyObject *kwargs;
     ThreadHandle *handle;
     PyEvent handle_ready;
+    PyEvent handle_running;
 };
 
 static void
@@ -359,6 +360,8 @@ thread_run(void *boot_raw)
 
     // Wait until the handle is marked as running
     PyEvent_Wait(&boot->handle_ready);
+    // Signal that this Thread is running
+    _PyEvent_Notify(&boot->handle_running);
 
     // `handle` needs to be manipulated after bootstate has been freed
     ThreadHandle *handle = boot->handle;
@@ -468,6 +471,7 @@ ThreadHandle_start(ThreadHandle *self, PyObject *func, PyObject *args,
     boot->handle = self;
     ThreadHandle_incref(self);
     boot->handle_ready = (PyEvent){0};
+    boot->handle_running = (PyEvent){0};
 
     PyThread_ident_t ident;
     PyThread_handle_t os_handle;
@@ -488,8 +492,9 @@ ThreadHandle_start(ThreadHandle *self, PyObject *func, PyObject *args,
     self->state = THREAD_HANDLE_RUNNING;
     PyMutex_Unlock(&self->mutex);
 
-    // Unblock the thread
+    // Unblock the thread and wait that the thread signal, it alives
     _PyEvent_Notify(&boot->handle_ready);
+    PyEvent_Wait(&boot->handle_running);
 
     return 0;
 
@@ -708,6 +713,18 @@ PyThreadHandleObject_join(PyObject *op, PyObject *args)
 }
 
 static PyObject *
+PyThreadHandleObject_is_running(PyObject *op, PyObject *Py_UNUSED(dummy))
+{
+    PyThreadHandleObject *self = PyThreadHandleObject_CAST(op);
+    if (get_thread_handle_state(self->handle) == THREAD_HANDLE_RUNNING) {
+        Py_RETURN_TRUE;
+    }
+    else {
+        Py_RETURN_FALSE;
+    }
+}
+
+static PyObject *
 PyThreadHandleObject_is_done(PyObject *op, PyObject *Py_UNUSED(dummy))
 {
     PyThreadHandleObject *self = PyThreadHandleObject_CAST(op);
@@ -740,6 +757,7 @@ static PyGetSetDef ThreadHandle_getsetlist[] = {
 static PyMethodDef ThreadHandle_methods[] = {
     {"join", PyThreadHandleObject_join, METH_VARARGS, NULL},
     {"_set_done", PyThreadHandleObject_set_done, METH_NOARGS, NULL},
+    {"is_running", PyThreadHandleObject_is_running, METH_NOARGS, NULL},
     {"is_done", PyThreadHandleObject_is_done, METH_NOARGS, NULL},
     {0, 0}
 };

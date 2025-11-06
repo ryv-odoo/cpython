@@ -307,7 +307,7 @@ class ThreadTests(BaseTestCase):
         # Issue gh-106236:
         with self.assertRaises(RuntimeError):
             dummy_thread.join()
-        dummy_thread._started.clear()
+        dummy_thread._os_thread_handle._set_done()
         with self.assertRaises(RuntimeError):
             dummy_thread.is_alive()
         # Busy wait for the following condition: after the thread dies, the
